@@ -15,13 +15,8 @@
   <!--
     Convenience entitlements (decide per-app). Both broaden the dylib
     injection surface in exchange for "any 3rd-party native module just
-    works" without re-signing. Read docs/signing.md → "Mac entitlements:
-    which ones, and why" for the decision tree before deciding to keep
-    or drop. The boilerplate's only first-party native module
-    (better-sqlite3) loads fine without either when re-signed via
-    electron-builder's afterSign step. If you drop these, drop them
-    from entitlements.mac.inherit.plist too — the two files must stay
-    in sync.
+    works" without re-signing. If you drop these, drop them from
+    entitlements.mac.inherit.plist too — the two files must stay in sync.
   -->
   <key>com.apple.security.cs.disable-library-validation</key>
   <true/>

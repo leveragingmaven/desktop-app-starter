@@ -7,8 +7,7 @@
     Plugin, Network Service). They all run V8 too, so they need the same
     JIT-related entitlements as the main app. Keep this in sync with
     entitlements.mac.plist — diverging values cause subtle helper crashes
-    that only reproduce on notarized builds. See docs/signing.md →
-    "Mac entitlements: which ones, and why" before tightening either file.
+    that only reproduce on notarized builds.
   -->
   <key>com.apple.security.cs.allow-jit</key>
   <true/>

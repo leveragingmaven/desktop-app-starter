@@ -11,7 +11,7 @@ files:
   - out/**/*
   - package.json
 
-# No auto-update feed in the mini. Builds are local, unsigned installers.
+# No auto-update feed in this starter. Builds are local, unsigned installers.
 publish: null
 
 # ----- Windows -----
