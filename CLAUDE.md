@@ -1,6 +1,7 @@
 # CLAUDE.md — Instructions for Claude Code
 
 > **Read this file before writing any code.** It says where every kind of code goes in this repo.
+> For the provider-agnostic workflow shared with other coding agents (Codex, Gemini CLI, OpenCode, Hermes), see `AGENTS.md`.
 > **These rules override generic best practices.** When this file conflicts with a habit, follow this file.
 
 ## Project context
