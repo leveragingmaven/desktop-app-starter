@@ -30,14 +30,15 @@ import { ScaleIn } from '@shared/components/motion/ScaleIn';
 type CardAction =
   | { kind: 'navigate'; screenId: string }
   | { kind: 'copy'; text: string }
-  | { kind: 'demo'; demo: 'motion' | 'themes' };
+  | { kind: 'demo'; demo: 'motion' | 'themes' }
+  | { kind: 'bridge' };
 
 const BLOCKS: { icon: LucideIcon; title: string; body: string; action: CardAction }[] = [
   {
     icon: ShieldCheck,
     title: 'A safe bridge',
     body: 'Main, preload and UI are split. Every message between them is typed and checked with Zod.',
-    action: { kind: 'navigate', screenId: 'explorer' },
+    action: { kind: 'bridge' },
   },
   {
     icon: Sparkles,
@@ -122,8 +123,18 @@ export function HomeScreen() {
     showToast(`Theme: ${next}`, 'info');
   };
 
+  const runBridgeCheck = async () => {
+    try {
+      const info = await window.api.appGetInfo();
+      showToast(`Bridge OK: ${info.name} v${info.version}`, 'success');
+    } catch {
+      showToast('Bridge call failed', 'error');
+    }
+  };
+
   const runCard = (action: CardAction) => {
-    if (action.kind === 'navigate') navigateTo(action.screenId);
+    if (action.kind === 'bridge') void runBridgeCheck();
+    else if (action.kind === 'navigate') navigateTo(action.screenId);
     else if (action.kind === 'copy') void copyText(action.text);
     else if (action.demo === 'motion') {
       setShowMotionDemo(true);

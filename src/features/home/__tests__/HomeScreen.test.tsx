@@ -70,6 +70,17 @@ describe('HomeScreen cards', () => {
     expect(navigateTo).toHaveBeenLastCalledWith('components');
   });
 
+  it('runs a live bridge call when the bridge card is clicked', async () => {
+    const appGetInfo = vi.fn(async () => ({ name: 'Test App', version: '1.2.3' }));
+    (window as unknown as { api: unknown }).api = { appGetInfo };
+    render(<HomeScreen />);
+    fireEvent.click(card('A safe bridge'));
+    await waitFor(() => expect(appGetInfo).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(showToast).toHaveBeenCalledWith('Bridge OK: Test App v1.2.3', 'success'),
+    );
+  });
+
   it('shows a working motion demo when the Motion card is clicked', () => {
     render(<HomeScreen />);
     expect(screen.queryByLabelText('Motion demo')).toBeNull();
