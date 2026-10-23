@@ -49,3 +49,10 @@
 
 ## What has *not* been done
 No local dependency install, automated test run, Windows installer build, or live Agency integration has been verified through the GitHub-only editing workflow.
+
+## Additional optional modules committed
+- `src/shared/deployment/agency-contract.ts`: type-only contracts for Agency SSO, tenant-scoped storage, and browser-safe secret operations. No endpoints or authentication implementation.
+- `src/shared/branding/app-brand.ts`: optional branding metadata and validation. Does not alter existing product appearance.
+- `src/shared/branding/app-brand.test.ts`: branding validation tests.
+
+These modules are intentionally not wired into the Electron application yet. The real Agency SSO/PHP implementation must be inspected before connecting transport or customer storage. No CI or local tests have been run by the GitHub editing connection.
