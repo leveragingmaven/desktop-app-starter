@@ -10,7 +10,7 @@ const isWindows = process.platform === 'win32';
 const binName = isWindows ? 'electron-vite.cmd' : 'electron-vite';
 const electronVite = path.join(__dirname, '..', 'node_modules', '.bin', binName);
 
-const child = spawn(electronVite, ['dev'], {
+const child = spawn(isWindows ? `"${electronVite}"` : electronVite, ['dev'], {
   stdio: 'inherit',
   env,
   cwd: path.join(__dirname, '..'),

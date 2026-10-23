@@ -1,6 +1,6 @@
 import path from 'path';
 import { app } from 'electron';
-import { promises as fsp } from 'fs';
+import fsSync, { promises as fsp } from 'fs';
 import { logEngine } from '../../logging';
 import type {
   FsEncoding,
@@ -46,7 +46,7 @@ class FsService {
       log.warn('Skipped blessing non-absolute path', { path: absolutePath });
       return;
     }
-    const normalized = this.normalize(absolutePath);
+    const normalized = this.normalize(this.canonicalRoot(absolutePath));
     if (this.blessed.has(normalized)) return;
     this.blessed.add(normalized);
     log.debug('Blessed path', { path: normalized, total: this.blessed.size });
@@ -54,7 +54,7 @@ class FsService {
 
   isAllowed(p: string): boolean {
     const normalized = this.normalize(p);
-    if (this.isWithin(this.normalize(app.getPath('userData')), normalized)) return true;
+    if (this.isWithin(this.normalize(this.canonicalRoot(app.getPath('userData'))), normalized)) return true;
     for (const blessedPath of this.blessed) {
       if (normalized === blessedPath) return true;
       if (this.isWithin(blessedPath, normalized)) return true;
@@ -224,12 +224,48 @@ class FsService {
       return this.normalize(path.join(realParent, base));
     } catch (err) {
       if (this.isENoEnt(err)) {
-        // Parent also missing — let the caller's mkdir/write attempt create
-        // it (under userData); fall back to the literal-resolved path.
-        return this.normalize(absolutePath);
+        // Parent also missing — walk up to the nearest existing ancestor,
+        // canonicalize it, and rejoin the missing tail so the check still
+        // lands on the canonical form (the caller's mkdir creates the rest).
+        return this.normalize(await this.canonicalizeAncestor(absolutePath));
       }
       log.warn('canonicalize parent failed', { path: absolutePath, err: String(err) });
       return null;
+    }
+  }
+
+  /**
+   * Synchronous canonical form of an allow-list root. Windows short names
+   * (e.g. MARTHA~1) expand under realpath, so roots must be canonicalized
+   * too or checks against realpath'd paths never match. Falls back to the
+   * parent-rejoin form for paths that do not exist yet.
+   */
+  private canonicalRoot(p: string): string {
+    try {
+      return fsSync.realpathSync.native(p);
+    } catch {
+      try {
+        return path.join(fsSync.realpathSync.native(path.dirname(p)), path.basename(p));
+      } catch {
+        return p;
+      }
+    }
+  }
+
+  private async canonicalizeAncestor(absolutePath: string): Promise<string> {
+    let current = absolutePath;
+    const tail: string[] = [];
+    while (true) {
+      const parent = path.dirname(current);
+      tail.unshift(path.basename(current));
+      if (parent === current) return absolutePath;
+      try {
+        const realParent = await fsp.realpath(parent);
+        return path.join(realParent, ...tail);
+      } catch (err) {
+        if (!this.isENoEnt(err)) return absolutePath;
+      }
+      current = parent;
     }
   }
 

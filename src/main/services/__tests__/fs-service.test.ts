@@ -1,5 +1,5 @@
 import path from 'path';
-import { promises as fsp } from 'fs';
+import { existsSync, promises as fsp } from 'fs';
 import os from 'os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -29,6 +29,20 @@ vi.mock('../../../logging', () => ({
 import { fsService, FS_LIMITS } from '../fs-service';
 
 const sandbox = path.join(os.tmpdir(), 'fs-service-tests-sandbox');
+
+/**
+ * Returns the 8.3 short-name form of an existing Windows directory, or null
+ * when short names are disabled on the volume (the test then no-ops).
+ */
+async function windowsShortName(dir: string): Promise<string | null> {
+  const { execSync } = await import('child_process');
+  try {
+    const out = execSync(`cmd /d /c for %I in ("${dir}") do @echo %~sI`, { encoding: 'utf8' }).trim();
+    return out && out !== dir && existsSync(out) ? out : null;
+  } catch {
+    return null;
+  }
+}
 
 async function makeFile(p: string, content: string | Buffer): Promise<void> {
   await fsp.mkdir(path.dirname(p), { recursive: true });
@@ -213,6 +227,70 @@ describe('FsService', () => {
   // could traverse a symlink inside that dir to read files outside the
   // allow-list. The service must canonicalize via fs.realpath before the
   // prefix check.
+  describe('canonicalization (short names, missing parents, escapes)', () => {
+    it('accepts a blessed root given as a Windows 8.3 short name', async () => {
+      if (process.platform !== 'win32') return;
+      const dir = path.join(userDataDir, 'long-name-folder');
+      await makeFile(path.join(dir, 'doc.txt'), 'short-ok');
+      const shortDir = await windowsShortName(dir);
+      expect(shortDir, 'expected an 8.3 short name for the temp dir').not.toBeNull();
+      if (!shortDir) return;
+      fsService.bless(shortDir);
+      const res = await fsService.read(path.join(dir, 'doc.txt'));
+      expect(res.success).toBe(true);
+      if (res.success) expect(res.content).toBe('short-ok');
+    });
+
+    it('accepts a path written with a short-name segment inside a blessed root', async () => {
+      if (process.platform !== 'win32') return;
+      const dir = path.join(sandbox, 'long-name-folder');
+      await fsp.mkdir(dir, { recursive: true });
+      const shortDir = await windowsShortName(dir);
+      expect(shortDir, 'expected an 8.3 short name for the temp dir').not.toBeNull();
+      if (!shortDir) return;
+      fsService.bless(sandbox);
+      const res = await fsService.write(path.join(shortDir, 'via-short.txt'), 'written');
+      expect(res.success).toBe(true);
+      const check = await fsp.readFile(path.join(dir, 'via-short.txt'), 'utf8');
+      expect(check).toBe('written');
+    });
+
+    it('writes a new file whose parent directories do not exist yet inside a blessed root', async () => {
+      fsService.bless(sandbox);
+      const target = path.join(sandbox, 'a', 'b', 'c', 'new.txt');
+      const res = await fsService.write(target, 'deep');
+      expect(res.success).toBe(true);
+      expect(await fsp.readFile(target, 'utf8')).toBe('deep');
+    });
+
+    it('refuses a write to a missing-parent path that escapes the blessed root with ..', async () => {
+      const blessedDir = path.join(userDataDir, 'inbox');
+      await fsp.mkdir(blessedDir, { recursive: true });
+      fsService.bless(blessedDir);
+      const escaped = path.join(blessedDir, '..', '..', 'missing-x', 'y', 'evil.txt');
+      const res = await fsService.write(escaped, 'no');
+      expect(res.success).toBe(false);
+      if (!res.success) expect(res.code).toBe('forbidden');
+    });
+
+    it('refuses a write under a missing directory that is not inside any allowed root', async () => {
+      const res = await fsService.write(path.join(sandbox, 'missing', 'deeper', 'x.txt'), 'no');
+      expect(res.success).toBe(false);
+      if (!res.success) expect(res.code).toBe('forbidden');
+    });
+
+    it('refuses reads of a sibling directory that shares a name prefix with a blessed root', async () => {
+      const blessedDir = path.join(sandbox, 'data');
+      const siblingDir = path.join(sandbox, 'data-evil');
+      await makeFile(path.join(siblingDir, 'secret.txt'), 'nope');
+      await fsp.mkdir(blessedDir, { recursive: true });
+      fsService.bless(blessedDir);
+      const res = await fsService.read(path.join(siblingDir, 'secret.txt'));
+      expect(res.success).toBe(false);
+      if (!res.success) expect(res.code).toBe('forbidden');
+    });
+  });
+
   describe('symlink resolution (F4.1)', () => {
     async function trySymlink(target: string, link: string): Promise<boolean> {
       try {
